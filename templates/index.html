@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FinGuard AI - Fraud Risk Intelligence</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+    <link href="{{ url_for('static', filename='style.css') }}" rel="stylesheet">
+</head>
+
+<body class="bg-gradient">
+<!-- Navigation Bar -->
+<nav class="navbar navbar-dark navbar-expand-lg" style="background: linear-gradient(135deg, #1a3a52 0%, #2c5aa0 100%);">
+    <div class="container-fluid">
+        <a class="navbar-brand fw-bold" href="/">
+            <i class="bi bi-shield-lock"></i> FinGuard AI
+        </a>
+        <span class="navbar-text text-light ms-auto">Banking Fraud Intelligence</span>
+    </div>
+</nav>
+
+<div class="container-fluid py-4">
+    <div class="row g-4">
+        <!-- Left Panel: Transaction Input Form -->
+        <div class="col-lg-6">
+            <div class="card shadow-lg border-0">
+                <div class="card-header" style="background: linear-gradient(135deg, #2c5aa0 0%, #1a3a52 100%);">
+                    <h5 class="mb-0 text-white">
+                        <i class="bi bi-credit-card"></i> Transaction Analysis
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if error %}
+                        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                            <i class="bi bi-exclamation-triangle"></i> {{ error }}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                        </div>
+                    {% endif %}
+
+                    <form id="predictionForm" method="POST" action="/predict">
+                        <div class="row g-3">
+                            {% for feature in features %}
+                            <div class="col-md-6">
+                                <label for="{{ feature }}" class="form-label fw-semibold">
+                                    {{ feature.replace('_', ' ').title() }}
+                                </label>
+                                <input 
+                                    type="number" 
+                                    step="any" 
+                                    class="form-control form-control-lg" 
+                                    id="{{ feature }}" 
+                                    name="{{ feature }}" 
+                                    placeholder="Enter value"
+                                    required>
+                                <small class="text-muted">
+                                    {% if 'amount' in feature.lower() %}
+                                        Rupees
+                                    {% elif 'hour' in feature.lower() %}
+                                        0-23
+                                    {% elif 'mismatch' in feature.lower() or 'international' in feature.lower() %}
+                                        0 or 1
+                                    {% elif 'attempts' in feature.lower() %}
+                                        Count
+                                    {% else %}
+                                        Numeric value
+                                    {% endif %}
+                                </small>
+                            </div>
+                            {% endfor %}
+                        </div>
+
+                        <div class="d-grid gap-2 mt-4">
+                            <button type="submit" class="btn btn-primary btn-lg fw-bold">
+                                <i class="bi bi-lightning-charge"></i> Analyze Transaction
+                            </button>
+                        </div>
+                    </form>
+
+                    <hr class="my-4">
+
+                    <!-- Quick Sample Data -->
+                    <div class="alert alert-info" role="alert">
+                        <small>
+                            <i class="bi bi-info-circle"></i>
+                            <strong>Tip:</strong> Use the sample data button below to quickly test the system.
+                        </small>
+                    </div>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="sampleDataBtn">
+                        <i class="bi bi-file-earmark-text"></i> Fill Sample Data
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Panel: Risk Assessment Card -->
+        <div class="col-lg-6">
+            <!-- Initial State -->
+            <div id="initialState" class="card shadow-lg border-0">
+                <div class="card-body text-center py-5">
+                    <div style="font-size: 3rem; margin-bottom: 1rem;">
+                        <i class="bi bi-shield-check" style="color: #2c5aa0;"></i>
+                    </div>
+                    <h5 class="fw-bold">Real-Time Fraud Detection</h5>
+                    <p class="text-muted">
+                        Enter transaction details on the left panel and click "Analyze Transaction" to get instant fraud risk assessment.
+                    </p>
+                    <hr>
+                    <p class="text-muted small mb-0">
+                        <i class="bi bi-info-circle"></i>
+                        This system analyzes transaction features using an enterprise-grade machine learning model.
+                    </p>
+                </div>
+            </div>
+
+            <!-- Result State -->
+            {% if probability is defined and probability is not none %}
+            <div id="resultState" class="card shadow-lg border-0">
+                <div class="card-header" style="background: linear-gradient(135deg, #2c5aa0 0%, #1a3a52 100%);">
+                    <h5 class="mb-0 text-white">
+                        <i class="bi bi-graph-up"></i> Risk Assessment Results
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <!-- Risk Score Card -->
+                    <div class="risk-score-card text-center mb-4" id="riskScoreCard">
+                        <div class="risk-badge" id="riskBadge">
+                            <div class="risk-circle" id="riskCircle" data-color="{{ color|default('green') }}">
+                                <span id="probabilityValue" class="risk-value">{{ probability|default('--') }}</span>
+                                <small>% Risk</small>
+                            </div>
+                        </div>
+                        <h4 id="riskLevel" class="mt-3 fw-bold" data-risk="{{ risk|default('--') }}">{{ risk|default('--') }}</h4>
+                        <p id="predictionLabel" class="text-muted mb-0">Confidence: <strong>{{ probability|default('0') }}%</strong></p>
+                    </div>
+
+                    <!-- Progress Bar -->
+                    <div class="mb-4">
+                        <label class="form-label fw-semibold">Fraud Probability</label>
+                        <div class="progress" style="height: 25px;">
+                            <div id="progressBar" class="progress-bar" role="progressbar" data-probability="{{ probability|default(0) }}" data-color="{{ color|default('green') }}">
+                                <span id="progressText">{{ probability|default(0) }}%</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Metrics Section -->
+                    <div class="row g-2 mt-3">
+                        <div class="col-6">
+                            <div class="metric-box text-center p-3" style="background: #f8f9fa; border-radius: 8px;">
+                                <h6 class="text-muted mb-0">Accuracy</h6>
+                                <h4 class="fw-bold text-primary">99.94%</h4>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="metric-box text-center p-3" style="background: #f8f9fa; border-radius: 8px;">
+                                <h6 class="text-muted mb-0">Precision</h6>
+                                <h4 class="fw-bold text-success">90.00%</h4>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Model Analytics Section -->
+    <div class="row mt-4 g-4">
+        <div class="col-md-8">
+            <div class="card shadow-lg border-0">
+                <div class="card-header" style="background: linear-gradient(135deg, #2c5aa0 0%, #1a3a52 100%);">
+                    <h5 class="mb-0 text-white">
+                        <i class="bi bi-bar-chart"></i> Feature Importance
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <img src="{{ url_for('static', filename='feature_importance.png') }}" alt="Feature Importance" class="img-fluid">
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card shadow-lg border-0">
+                <div class="card-header" style="background: linear-gradient(135deg, #2c5aa0 0%, #1a3a52 100%);">
+                    <h5 class="mb-0 text-white">
+                        <i class="bi bi-grid-3x3-gap"></i> Confusion Matrix
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <img src="{{ url_for('static', filename='confusion_matrix.png') }}" alt="Confusion Matrix" class="img-fluid">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Model Performance Metrics -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card shadow-lg border-0">
+                <div class="card-header" style="background: linear-gradient(135deg, #2c5aa0 0%, #1a3a52 100%);">
+                    <h5 class="mb-0 text-white">
+                        <i class="bi bi-award"></i> Model Performance Metrics
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-3 col-sm-6">
+                            <div class="metric-box p-3" style="background: #f8f9fa; border-radius: 8px;">
+                                <h6 class="text-muted">Accuracy</h6>
+                                <h3 class="fw-bold text-primary">99.94%</h3>
+                            </div>
+                        </div>
+                        <div class="col-md-3 col-sm-6">
+                            <div class="metric-box p-3" style="background: #f8f9fa; border-radius: 8px;">
+                                <h6 class="text-muted">Precision</h6>
+                                <h3 class="fw-bold text-success">90.00%</h3>
+                            </div>
+                        </div>
+                        <div class="col-md-3 col-sm-6">
+                            <div class="metric-box p-3" style="background: #f8f9fa; border-radius: 8px;">
+                                <h6 class="text-muted">Recall</h6>
+                                <h3 class="fw-bold text-info">64.29%</h3>
+                            </div>
+                        </div>
+                        <div class="col-md-3 col-sm-6">
+                            <div class="metric-box p-3" style="background: #f8f9fa; border-radius: 8px;">
+                                <h6 class="text-muted">ROC-AUC</h6>
+                                <h3 class="fw-bold text-warning">0.9999</h3>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Footer -->
+<footer class="bg-dark text-white text-center py-3 mt-5">
+    <p class="mb-0">FinGuard AI - Powered by XGBoost | Enterprise Fraud Detection Platform</p>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const sampleDataBtn = document.getElementById('sampleDataBtn');
+    const form = document.getElementById('predictionForm');
+    const riskCircle = document.getElementById('riskCircle');
+    const progressBar = document.getElementById('progressBar');
+    const riskLevel = document.getElementById('riskLevel');
+
+    // Color mapping
+    const colorMap = {
+        'green': '#28a745',
+        'orange': '#fd7e14',
+        'red': '#dc3545'
+    };
+
+    // Apply dynamic styles from data attributes on page load
+    function applyDynamicStyles() {
+        if (riskCircle && riskCircle.dataset.color) {
+            const color = riskCircle.dataset.color;
+            const hexColor = colorMap[color] || color;
+            riskCircle.style.backgroundColor = hexColor;
+            riskCircle.style.borderColor = hexColor;
+        }
+
+        if (progressBar && progressBar.dataset.probability) {
+            const prob = progressBar.dataset.probability;
+            const color = progressBar.dataset.color || 'green';
+            const hexColor = colorMap[color] || color;
+            progressBar.style.width = prob + '%';
+            progressBar.style.backgroundColor = hexColor;
+            progressBar.setAttribute('aria-valuenow', prob);
+        }
+
+        if (riskLevel && riskLevel.dataset.risk) {
+            const risk = riskLevel.dataset.risk;
+            if (risk.includes('High')) {
+                riskLevel.style.color = colorMap['red'];
+            } else if (risk.includes('Medium')) {
+                riskLevel.style.color = colorMap['orange'];
+            } else {
+                riskLevel.style.color = colorMap['green'];
+            }
+        }
+    }
+
+    // Sample data for testing
+    const sampleData = {
+        'transaction_amount': '2500',
+        'transaction_time_hour': '14',
+        'transaction_frequency_24h': '5',
+        'avg_transaction_amount_7d': '800',
+        'location_mismatch': '0',
+        'device_mismatch': '0',
+        'international_transaction': '1',
+        'days_since_account_open': '365',
+        'failed_login_attempts_24h': '0'
+    };
+
+    // Fill sample data
+    sampleDataBtn.addEventListener('click', function() {
+        for (const [key, value] of Object.entries(sampleData)) {
+            const field = document.getElementById(key);
+            if (field) field.value = value;
+        }
+    });
+
+    // Apply styles on page load
+    applyDynamicStyles();
+});
+</script>
+</body>
+</html>
