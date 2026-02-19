@@ -31,4 +31,24 @@ Built using Flask and deployed-ready with Gunicorn.
 ---
 
 ## 📁 Project Structure
-
+finance_risk/
+│
+└── fraud_detection_system/
+│
+├── app.py
+├── Model_training.py
+├── fraud_model.pkl
+├── requirements.txt
+├── Procfile
+├── README.md
+│
+├── templates/
+│ ├── index.html
+│ ├── dashboard.html
+│ ├── analytics.html
+│ └── error.html
+│
+└── static/
+├── style.css
+├── confusion_matrix.png
+└── feature_importance.png
